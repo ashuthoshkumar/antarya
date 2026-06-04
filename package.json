@@ -1,0 +1,11 @@
+{
+  "name": "antarya",
+  "scripts": {
+    "server": "cd server && nodemon index.js",
+    "client": "cd client && npm run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
