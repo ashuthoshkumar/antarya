@@ -1,53 +1,71 @@
-module.exports = (memoryDB, useMongo) => {
+module.exports = (memoryDB) => {
   const router = require('express').Router();
-  
+
   router.post('/ask', async (req, res) => {
     const { question } = req.body;
     
-    // Build context from shop data
-    const context = {
-      inventory: memoryDB.inventory,
-      sales: memoryDB.sales.slice(-7), // last 7 sales
-      udhaar: memoryDB.udhaar.filter(u => u.status === 'pending'),
-      customers: memoryDB.customers
-    };
-    
-    const prompt = `You are ANTARYA, an AI advisor for a small Indian kirana store. 
-    The shopkeeper asks in Hinglish or English. Give SHORT, practical advice.
-    
-    Shop Data: ${JSON.stringify(context)}
-    
-    Question: ${question}
-    
-    Answer in 2-3 sentences max. Be friendly and actionable.`;
-    
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        }
-      );
-      const data = await response.json();
-      const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || 
-        "Bhai, thoda busy hoon. Dobara poochho.";
-      res.json({ answer });
-    } catch (err) {
-      // Fallback responses
-      const fallbacks = {
-        'stock': 'Aapke paas atta aur chawal kam hai. Supplier ko call karo.',
-        'udhaar': 'Mohan ₹450 aur Priya ₹200 dena baaki hai. Aaj hi phone karo.',
-        'profit': 'Aaj ₹1,200 ka fayda hua. Kal se ₹800 zyada hai.',
-        'customer': '4 customers 7 din se nahi aaye. Unhe WhatsApp karo.'
-      };
-      const key = Object.keys(fallbacks).find(k => question.toLowerCase().includes(k));
-      res.json({ answer: fallbacks[key] || 'Data check karo, main madad karunga.' });
+    if (!question) {
+      return res.status(400).json({ error: 'Question daaliye' });
     }
+
+    const q = question.toLowerCase();
+
+    // Get real data
+    const inventory = memoryDB?.inventory || [];
+    const sales = memoryDB?.sales || [];
+    const udhaar = memoryDB?.udhaar || [];
+    const customers = memoryDB?.customers || [];
+
+    // ===== UDHAR (check FIRST before stock) =====
+    if (q.includes('udhaar') || q.includes('paisa') || q.includes('baaki') || q.includes('dena')) {
+      const pending = udhaar.filter(u => u.status === 'pending');
+      if (pending.length === 0) {
+        return res.json({ answer: '🎉 Koi udhaar nahi hai! Sab paise aa gaye.' });
+      }
+      const total = pending.reduce((s, u) => s + (u.amount || 0), 0);
+      let answer = `💰 ${pending.length} logon se ₹${total} udhaar baaki hai:\n`;
+      pending.forEach((u, i) => {
+        answer += `${i+1}. ${u.customer}: ₹${u.amount}\n`;
+      });
+      return res.json({ answer });
+    }
+
+    // ===== PROFIT / SALES =====
+    if (q.includes('profit') || q.includes('fayda') || q.includes('sales') || q.includes('kamai') || q.includes('aaj')) {
+      const totalSales = sales.reduce((s, sale) => s + (sale.total || 0), 0);
+      const today = new Date().toDateString();
+      const todaySales = sales.filter(s => new Date(s.date).toDateString() === today);
+      const todayTotal = todaySales.reduce((s, sale) => s + (sale.total || 0), 0);
+      const profit = Math.round(todayTotal * 0.15);
+      
+      if (todayTotal > 0) {
+        return res.json({ answer: `📊 Aaj ki sales: ₹${todayTotal}\n💰 Profit: ₹${profit}\n📈 Total: ₹${totalSales}` });
+      }
+      return res.json({ answer: `📊 Aaj koi sale nahi. Total: ₹${totalSales}\n💡 Discount do customers ko.` });
+    }
+
+    // ===== STOCK / INVENTORY (check LAST) =====
+    if (q.includes('stock') || q.includes('samaan') || q.includes('inventory') || q.includes('kitna') || q.includes('khatam') || q.includes('hai')) {
+      const lowStock = inventory.filter(i => i.quantity < 10);
+      const outOfStock = inventory.filter(i => i.quantity === 0);
+      
+      if (outOfStock.length > 0) {
+        return res.json({ answer: `⚠️ ${outOfStock.map(i => i.name).join(', ')} bilkul khatam! Supplier ko call karo.` });
+      }
+      if (lowStock.length > 0) {
+        return res.json({ answer: `📦 ${lowStock.map(i => `${i.name} (${i.quantity} left)`).join(', ')} kam hai. Jaldi mangwao!` });
+      }
+      return res.json({ answer: `✅ Sab stock theek hai. ${inventory.length} items available.` });
+    }
+
+    // ===== CUSTOMERS =====
+    if (q.includes('customer') || q.includes('log')) {
+      return res.json({ answer: `👥 ${customers.length} registered customers hain.` });
+    }
+
+    // ===== DEFAULT =====
+    return res.json({ answer: `🤔 Main samjha nahi. Poochho:\n• "Kitna udhaar baaki hai?"\n• "Mera stock kaisa hai?"\n• "Aaj kitna profit hua?"` });
   });
-  
+
   return router;
 };

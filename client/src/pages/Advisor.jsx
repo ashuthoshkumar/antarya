@@ -1,11 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { Send, Mic, Bot, User, Loader } from 'lucide-react';
 
-const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-});
+
 
 export default function Advisor() {
   const [messages, setMessages] = useState([

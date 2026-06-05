@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Eye, EyeOff, Store, Phone, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Store, Phone, Lock, ArrowRight, Loader2, UserPlus } from 'lucide-react';
+
+const API_URL = 'http://localhost:5000/api';
 
 export default function Login() {
   const [phone, setPhone] = useState('');
@@ -9,128 +11,60 @@ export default function Login() {
   const [showPin, setShowPin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [showRegisterPrompt, setShowRegisterPrompt] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/dashboard');
-    }
-    const savedPhone = localStorage.getItem('savedPhone');
-    if (savedPhone) {
-      setPhone(savedPhone);
-      setRememberMe(true);
-    }
+    if (token) navigate('/dashboard');
   }, [navigate]);
-
-  const validatePhone = (num) => {
-    const phoneRegex = /^[6-9]\d{9}$/;
-    return phoneRegex.test(num);
-  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setShowRegisterPrompt(false);
 
-    if (!phone.trim()) {
-      setError('Phone number daaliye');
+    if (!phone || phone.length !== 10) {
+      setError('Sahi 10-digit phone number daaliye');
       return;
     }
-    if (!validatePhone(phone)) {
-      setError('Sahi phone number daaliye (10 digits)');
-      return;
-    }
-    if (!pin.trim()) {
-      setError('PIN daaliye');
-      return;
-    }
-    if (pin.length !== 4) {
-      setError('PIN 4 digits ka hona chahiye');
+    if (!pin || pin.length !== 4) {
+      setError('4-digit PIN daaliye');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/login', { phone, pin });
+      const res = await axios.post(`${API_URL}/auth/login`, { phone, pin });
       
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       
-      if (rememberMe) {
-        localStorage.setItem('savedPhone', phone);
-      } else {
-        localStorage.removeItem('savedPhone');
-      }
-
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Server check karo.');
+      const errorMsg = err.response?.data?.error || 'Server error';
+      
+      if (err.response?.status === 404) {
+        setShowRegisterPrompt(true);
+        setError('Account nahi mila. Naya account banayein.');
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePhoneChange = (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-    setPhone(value);
-    setError('');
-  };
-
-  const handlePinChange = (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-    setPin(value);
-    setError('');
-  };
-
   return (
     <div className="min-h-screen flex relative overflow-hidden">
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ 
-          backgroundImage: 'url(/images/bg.jpg), url(https://images.unsplash.com/photo-1555212697-194d092e3b8f?w=1920&q=80)' 
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/90 via-blue-800/85 to-indigo-900/90" />
-      </div>
-
-      <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-center px-16 text-white">
-        <div className="mb-8">
-          <div className="w-20 h-20 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center mb-6">
-            <Store size={40} className="text-white" />
-          </div>
-          <h1 className="text-5xl font-bold mb-4 tracking-tight">ANTARYA</h1>
-          <p className="text-2xl font-light text-blue-100 mb-6">Apki Dukan Ka Digital Dimaag</p>
-          <p className="text-blue-200 text-lg leading-relaxed max-w-md">
-            12 million+ kirana stores ke liye banaya gaya AI-powered platform. 
-            Stock, udhaar, aur profit — sab ek jagah.
-          </p>
-        </div>
-        
-        <div className="flex gap-8 mt-8">
-          <div className="text-center">
-            <p className="text-3xl font-bold text-white">12M+</p>
-            <p className="text-blue-200 text-sm">Kirana Stores</p>
-          </div>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-white">40%</p>
-            <p className="text-blue-200 text-sm">Waste Reduce</p>
-          </div>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-white">60%</p>
-            <p className="text-blue-200 text-sm">Udhaar Recover</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="w-full lg:w-1/2 relative z-10 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900" />
+      
+      <div className="w-full relative z-10 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <div className="lg:hidden text-center mb-8">
-            <div className="w-16 h-16 bg-white/20 backdrop-blur-lg rounded-xl flex items-center justify-center mx-auto mb-4">
-              <Store size={32} className="text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-white">ANTARYA</h1>
-            <p className="text-blue-200">Apki Dukan Ka Digital Dimaag</p>
+          <div className="text-center mb-8">
+            <Store size={40} className="text-white mx-auto mb-4" />
+            <h1 className="text-4xl font-bold text-white">ANTARYA</h1>
+            <p className="text-blue-200 mt-2">Apki Dukan Ka Digital Dimaag</p>
           </div>
 
           <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
@@ -138,9 +72,21 @@ export default function Login() {
             <p className="text-blue-200 mb-6">Apne store mein login karein</p>
 
             {error && (
-              <div className="bg-red-500/20 border border-red-500/30 text-red-200 px-4 py-3 rounded-xl mb-4 text-sm flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-red-400 rounded-full" />
+              <div className={`px-4 py-3 rounded-xl mb-4 text-sm ${showRegisterPrompt ? 'bg-orange-500/20 border border-orange-500/30 text-orange-200' : 'bg-red-500/20 border border-red-500/30 text-red-200'}`}>
                 {error}
+              </div>
+            )}
+
+            {showRegisterPrompt && (
+              <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mb-4">
+                <p className="text-green-200 text-sm mb-3">Ye phone number register nahi hai.</p>
+                <button
+                  onClick={() => navigate('/register', { state: { phone } })}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"
+                >
+                  <UserPlus size={20} />
+                  Register Now
+                </button>
               </div>
             )}
 
@@ -152,13 +98,14 @@ export default function Login() {
                   <input
                     type="tel"
                     value={phone}
-                    onChange={handlePhoneChange}
+                    onChange={e => {
+                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                      setShowRegisterPrompt(false);
+                      setError('');
+                    }}
                     placeholder="9876543210"
-                    className="w-full bg-white/10 border border-white/20 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-blue-300/50 focus:outline-none focus:border-blue-400 focus:bg-white/15 transition-all"
+                    className="w-full bg-white/10 border border-white/20 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-blue-300/50 focus:outline-none focus:border-blue-400"
                   />
-                  {phone.length === 10 && (
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400 text-xs font-medium">✓ Valid</span>
-                  )}
                 </div>
               </div>
 
@@ -169,66 +116,36 @@ export default function Login() {
                   <input
                     type={showPin ? 'text' : 'password'}
                     value={pin}
-                    onChange={handlePinChange}
+                    onChange={e => {
+                      setPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+                      setError('');
+                    }}
                     placeholder="••••"
-                    className="w-full bg-white/10 border border-white/20 rounded-xl py-3.5 pl-12 pr-12 text-white placeholder-blue-300/50 focus:outline-none focus:border-blue-400 focus:bg-white/15 transition-all tracking-widest"
+                    className="w-full bg-white/10 border border-white/20 rounded-xl py-3.5 pl-12 pr-12 text-white placeholder-blue-300/50 focus:outline-none focus:border-blue-400 tracking-widest"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPin(!showPin)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-300 hover:text-white transition-colors"
-                  >
+                  <button type="button" onClick={() => setShowPin(!showPin)} className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-300">
                     {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-white/30 bg-white/10 text-blue-500 focus:ring-blue-400"
-                  />
-                  <span className="text-blue-200 text-sm">Remember me</span>
-                </label>
-                <button type="button" className="text-blue-300 hover:text-white text-sm transition-colors">PIN bhool gaye?</button>
-              </div>
-
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25"
+                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {loading ? (
-                  <>
-                    <Loader2 size={20} className="animate-spin" />
-                    Logging in...
-                  </>
-                ) : (
-                  <>
-                    Login
-                    <ArrowRight size={20} />
-                  </>
-                )}
+                {loading ? <Loader2 size={20} className="animate-spin" /> : <ArrowRight size={20} />}
+                {loading ? 'Logging in...' : 'Login'}
               </button>
             </form>
 
             <div className="mt-6 text-center">
               <p className="text-blue-300/60 text-sm">
-                Nayi dukan?{' '}
-                <Link to="/register" className="text-blue-300 hover:text-white font-medium transition-colors">
-                  Register karein
-                </Link>
-              </p>
-              <p className="text-blue-300/40 text-xs mt-2">
-                Demo ke liye: Koi bhi phone + PIN <span className="text-blue-300 font-mono">1234</span>
+                Naya store?{' '}
+                <Link to="/register" className="text-blue-300 hover:text-white font-medium">Register karein</Link>
               </p>
             </div>
           </div>
-
-          <p className="text-center text-blue-300/40 text-xs mt-6">© 2026 ANTARYA. Made with ❤️ for Indian Kirana Stores</p>
         </div>
       </div>
     </div>

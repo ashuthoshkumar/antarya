@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import { TrendingUp, TrendingDown, Package, Users, AlertTriangle } from 'lucide-react';
 
-const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-});
+
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ sales: 0, udhaar: 0, lowStock: 0, profit: 0 });

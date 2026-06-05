@@ -1,54 +1,19 @@
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
-// Demo users database (in-memory)
-const users = [
-  { phone: '9876543210', pin: '1234', name: 'Ramesh Bhai', shopName: 'Ramesh Kirana Store' },
-  { phone: '9876543211', pin: '1234', name: 'Suresh Bhai', shopName: 'Suresh General Store' },
-];
+// In-memory user database
+const users = [];
 
-router.post('/login', async (req, res) => {
-  const { phone, pin } = req.body;
-
-  if (!phone || !pin) {
-    return res.status(400).json({ error: 'Phone aur PIN dono daaliye' });
-  }
-
-  if (!/^[6-9]\d{9}$/.test(phone)) {
-    return res.status(400).json({ error: 'Phone number galat hai' });
-  }
-
-  if (pin.length !== 4) {
-    return res.status(400).json({ error: 'PIN 4 digits ka hona chahiye' });
-  }
-
-  if (pin !== '1234') {
-    return res.status(400).json({ error: 'PIN galat hai. 1234 try karein.' });
-  }
-
-  const user = users.find(u => u.phone === phone) || {
-    phone,
-    name: 'Kirana Owner',
-    shopName: 'Apni Dukan'
-  };
-
-  const token = jwt.sign(
+const generateToken = (user) => {
+  return jwt.sign(
     { phone: user.phone, name: user.name, shopName: user.shopName },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET || 'antarya_secret_2026',
     { expiresIn: '7d' }
   );
+};
 
-  res.json({
-    token,
-    user: {
-      phone: user.phone,
-      name: user.name,
-      shopName: user.shopName,
-      owner: user.name
-    }
-  });
-});
-
+// REGISTER
 router.post('/register', async (req, res) => {
   const { phone, pin, name, shopName, shopAddress, shopType } = req.body;
 
@@ -57,7 +22,7 @@ router.post('/register', async (req, res) => {
   }
 
   if (!/^[6-9]\d{9}$/.test(phone)) {
-    return res.status(400).json({ error: 'Phone number galat hai' });
+    return res.status(400).json({ error: 'Sahi 10-digit phone number daaliye' });
   }
 
   if (pin.length !== 4) {
@@ -66,26 +31,26 @@ router.post('/register', async (req, res) => {
 
   const existingUser = users.find(u => u.phone === phone);
   if (existingUser) {
-    return res.status(400).json({ error: 'Ye phone number pehle se registered hai' });
+    return res.status(400).json({ error: 'Ye phone number pehle se registered hai. Login karein.' });
   }
+
+  const hashedPin = await bcrypt.hash(pin, 10);
 
   const newUser = {
     phone,
-    pin,
+    pin: hashedPin,
     name,
     shopName,
     shopAddress: shopAddress || '',
-    shopType: shopType || 'kirana'
+    shopType: shopType || 'kirana',
+    createdAt: new Date()
   };
   users.push(newUser);
 
-  const token = jwt.sign(
-    { phone: newUser.phone, name: newUser.name, shopName: newUser.shopName },
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' }
-  );
+  const token = generateToken(newUser);
 
-  res.json({
+  res.status(201).json({
+    message: 'Account ban gaya!',
     token,
     user: {
       phone: newUser.phone,
@@ -94,6 +59,44 @@ router.post('/register', async (req, res) => {
       owner: newUser.name,
       shopAddress: newUser.shopAddress,
       shopType: newUser.shopType
+    }
+  });
+});
+
+// LOGIN
+router.post('/login', async (req, res) => {
+  const { phone, pin } = req.body;
+
+  if (!phone || !pin) {
+    return res.status(400).json({ error: 'Phone aur PIN dono daaliye' });
+  }
+
+  if (!/^[6-9]\d{9}$/.test(phone)) {
+    return res.status(400).json({ error: 'Sahi phone number daaliye' });
+  }
+
+  const user = users.find(u => u.phone === phone);
+  if (!user) {
+    return res.status(404).json({ error: 'Account nahi mila. Pehle register karein.' });
+  }
+
+  const isValidPin = await bcrypt.compare(pin, user.pin);
+  if (!isValidPin) {
+    return res.status(401).json({ error: 'PIN galat hai' });
+  }
+
+  const token = generateToken(user);
+
+  res.json({
+    message: 'Login successful!',
+    token,
+    user: {
+      phone: user.phone,
+      name: user.name,
+      shopName: user.shopName,
+      owner: user.name,
+      shopAddress: user.shopAddress,
+      shopType: user.shopType
     }
   });
 });
